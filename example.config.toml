@@ -1,0 +1,61 @@
+# AI Agent 配置文件
+
+# Agent 核心配置
+[agent]
+max_iterations = 5          # 最大迭代次数
+timeout = 30                # 超时时间（秒）
+debug = true                # 调试模式
+workspace = "/tmp/agent-workspace"  # 工作目录
+
+# LLM 配置
+[llm]
+provider = "openai"         # LLM提供商: openai, mock
+model = "gpt-4o-mini"  # 模型名称
+temperature = 0.7           # 温度参数
+api_key = ""               # API密钥（留空则从环境变量读取）
+base_url = "https://api.openai.com/v1"              # API基础URL（留空使用默认，可用于代理或兼容API）
+
+# 工具配置
+[tools]
+
+# Python 工具
+[tools.python]
+enabled = true
+timeout = 30                # 超时时间（秒）
+
+# Shell 工具
+[tools.shell]
+enabled = true
+timeout = 30
+# 允许的命令白名单（留空表示允许所有）
+allowed_commands = []
+# 禁止的命令黑名单
+blocked_commands = ["rm -rf /", "mkfs", "dd"]
+
+# 搜索工具
+[tools.search]
+enabled = true
+timeout = 10
+api_key = ""               # 搜索API密钥（如需要）
+
+# 计算器工具
+[tools.calculator]
+enabled = true
+
+# 简单数学工具
+[tools.simple_math]
+enabled = true
+
+# 文件操作工具
+[tools.file_ops]
+enabled = true
+workspace = "/tmp/agent-workspace"
+# 允许的文件路径（留空表示仅限workspace）
+allowed_paths = []
+
+# 日志配置
+[logging]
+level = "info"             # 日志级别: debug, info, warn, error
+format = "text"            # 日志格式: text, json
+output = "stdout"          # 输出: stdout, file
+file_path = "agent.log"    # 日志文件路径（当output=file时）
