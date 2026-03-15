@@ -124,29 +124,21 @@ func main() { // 帮我在桌面创建一个文件，然后把圆周率的100位
 
 func registerTools(a *agent.Agent) {
 	// 注册Python工具
-	a.RegisterTool(tools.NewPythonTool(30 * time.Second))
+	a.RegisterTool(tools.NewPythonRunnerTool(30 * time.Second))
 
 	// 注册Shell工具
-	a.RegisterTool(tools.NewShellTool(30 * time.Second))
+	a.RegisterTool(tools.NewCommandExecutorTool(30 * time.Second))
 
 	// 注册搜索工具
-	a.RegisterTool(tools.NewSearchTool(10*time.Second, ""))
-
-	// 注册计算器工具
-	a.RegisterTool(tools.NewCalculatorTool())
-	a.RegisterTool(tools.NewSimpleMathTool())
-
-	// 注册文件操作工具
-	a.RegisterTool(tools.NewFileOperationTool("/tmp/agent-workspace"))
-
-	// 注册天气工具
-	a.RegisterTool(tools.NewWeatherTool(10 * time.Second))
-
-	// 注册股票工具
-	a.RegisterTool(tools.NewStockTool(10 * time.Second))
-
-	// 注册AI搜索工具
 	a.RegisterTool(tools.NewAISearchTool(a.GetLLMInstance()))
+
+	a.RegisterTool(tools.NewFileOperatorTool())
+
+	a.RegisterTool(tools.NewHTTPRequestTool())
+
+	a.RegisterTool(tools.NewJSONTool())
+
+	a.RegisterTool(tools.NewDateTimeTool())
 
 	// 注册字符长度工具
 	a.RegisterTool(tools.NewWordLengthTool())

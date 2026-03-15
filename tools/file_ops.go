@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,114 +9,80 @@ import (
 )
 
 // FileOperationTool 文件操作工具
-type FileOperationTool struct {
-	workDir string
+// FileOperatorTool 文件操作工具（读/写/追加）
+type FileOperatorTool struct{}
+
+func NewFileOperatorTool() *FileOperatorTool {
+	return &FileOperatorTool{}
 }
 
-func NewFileOperationTool(workDir string) *FileOperationTool {
-	if workDir == "" {
-		workDir = "/tmp/agent-workspace"
-	}
-	os.MkdirAll(workDir, 0755)
-	return &FileOperationTool{workDir: workDir}
+func (t *FileOperatorTool) Name() string {
+	return "file_operator"
 }
 
-func (t *FileOperationTool) Name() string {
-	return "file_ops"
-}
-
-func (t *FileOperationTool) Description() string {
-	return `文件操作工具。支持读取、写入、列出文件。
-输入格式：命令|参数
-命令：
-- read|filepath: 读取文件内容
-- write|filepath|content: 写入文件内容
-- list|dirpath: 列出目录内容
-- delete|filepath: 删除文件
+func (t *FileOperatorTool) Description() string {
+	return `文件读写操作工具。
+输入格式：操作类型|文件路径|内容（内容仅写/追加操作需要）
+支持的操作类型：
+- read: 读取文件内容
+- write: 写入文件（覆盖原有内容）
+- append: 追加内容到文件末尾
+使用说明：
+- 文件路径支持绝对路径和相对路径
+- 路径中的特殊字符需要正确转义
 示例：
-read|test.txt
-write|output.txt|Hello World
-list|.
-delete|temp.txt`
+输入: read|./test.txt|
+输出: test.txt文件的内容
+输入: write|./test.txt|Hello File!
+输出: 文件写入成功
+输入: append|./test.txt|New Line
+输出: 文件追加成功`
 }
 
-func (t *FileOperationTool) Execute(input string) (string, error) {
+func (t *FileOperatorTool) Execute(input string) (string, error) {
 	parts := strings.SplitN(input, "|", 3)
 	if len(parts) < 2 {
-		return "", fmt.Errorf("输入格式错误。期望：命令|参数")
+		return "", errors.New("输入格式错误，正确格式：操作类型|文件路径|内容")
 	}
 
-	command := strings.TrimSpace(parts[0])
+	opType := strings.TrimSpace(parts[0])
+	filePath := strings.TrimSpace(parts[1])
+	content := ""
+	if len(parts) == 3 {
+		content = parts[2]
+	}
 
-	switch command {
+	filePath = filepath.Clean(filePath)
+
+	switch opType {
 	case "read":
-		return t.readFile(parts[1])
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return "", fmt.Errorf("读取文件失败: %w", err)
+		}
+		return string(data), nil
+
 	case "write":
-		if len(parts) < 3 {
-			return "", fmt.Errorf("write命令需要：write|filepath|content")
+		err := os.WriteFile(filePath, []byte(content), 0644)
+		if err != nil {
+			return "", fmt.Errorf("写入文件失败: %w", err)
 		}
-		return t.writeFile(parts[1], parts[2])
-	case "list":
-		return t.listDir(parts[1])
-	case "delete":
-		return t.deleteFile(parts[1])
+		return fmt.Sprintf("文件 %s 写入成功", filePath), nil
+
+	case "append":
+		f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return "", fmt.Errorf("打开文件失败: %w", err)
+		}
+		defer f.Close()
+
+		_, err = f.WriteString(content)
+		if err != nil {
+			return "", fmt.Errorf("追加内容失败: %w", err)
+		}
+		return fmt.Sprintf("内容已追加到文件 %s", filePath), nil
+
 	default:
-		return "", fmt.Errorf("未知命令: %s", command)
+		return "", fmt.Errorf("不支持的操作类型: %s，支持的类型：read/write/append", opType)
 	}
-}
-
-func (t *FileOperationTool) readFile(path string) (string, error) {
-	fullPath := t.resolvePath(path)
-	content, err := os.ReadFile(fullPath)
-	if err != nil {
-		return "", fmt.Errorf("读取文件失败: %v", err)
-	}
-	return string(content), nil
-}
-
-func (t *FileOperationTool) writeFile(path, content string) (string, error) {
-	fullPath := t.resolvePath(path)
-	err := os.WriteFile(fullPath, []byte(content), 0644)
-	if err != nil {
-		return "", fmt.Errorf("写入文件失败: %v", err)
-	}
-	return fmt.Sprintf("成功写入 %d 字节到 %s", len(content), fullPath), nil
-}
-
-func (t *FileOperationTool) listDir(path string) (string, error) {
-	fullPath := t.resolvePath(path)
-	entries, err := os.ReadDir(fullPath)
-	if err != nil {
-		return "", fmt.Errorf("列出目录失败: %v", err)
-	}
-
-	var result strings.Builder
-	result.WriteString(fmt.Sprintf("目录 %s 的内容:\n", fullPath))
-	for _, entry := range entries {
-		info, _ := entry.Info()
-		fileType := "文件"
-		if entry.IsDir() {
-			fileType = "目录"
-		}
-		result.WriteString(fmt.Sprintf("- %s (%s, %d 字节)\n",
-			entry.Name(), fileType, info.Size()))
-	}
-	return result.String(), nil
-}
-
-func (t *FileOperationTool) deleteFile(path string) (string, error) {
-	fullPath := t.resolvePath(path)
-	err := os.Remove(fullPath)
-	if err != nil {
-		return "", fmt.Errorf("删除文件失败: %v", err)
-	}
-	return fmt.Sprintf("成功删除文件: %s", fullPath), nil
-}
-
-func (t *FileOperationTool) resolvePath(path string) string {
-	path = strings.TrimSpace(path)
-	if filepath.IsAbs(path) {
-		return path
-	}
-	return filepath.Join(t.workDir, path)
 }
